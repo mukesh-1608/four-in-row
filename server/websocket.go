@@ -2,9 +2,11 @@ package server
 
 import (
 	"connect4/game"
+	"connect4/game/bot"
 	"encoding/json"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
@@ -12,11 +14,12 @@ import (
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
-	// Allow all origins for simplicity in this assignment
 	CheckOrigin: func(r *http.Request) bool {
 		return true
 	},
 }
+
+const DisconnectTimeout = 30 * time.Second
 
 // WebSocketHandler handles the websocket connection
 func WebSocketHandler(w http.ResponseWriter, r *http.Request) {
@@ -25,46 +28,79 @@ func WebSocketHandler(w http.ResponseWriter, r *http.Request) {
 		log.Println("Upgrade error:", err)
 		return
 	}
-	defer conn.Close()
 
-	log.Println("New Client Connected")
-
-	// For step 2 testing, we'll create a dummy single-player game
-	// so we can test the logic without full matchmaking.
-	playerID := "test-player-1"
-	gameID := "test-game"
+	// NOTE: In a real app, we'd get gameID/playerID from query params or handshake.
+	// For this step, we continue mocking the test game but add reconnect logic.
 	
-	// Ensure game exists for testing
+	// Query params for reconnect simulation: ?player=tester
+	playerID := r.URL.Query().Get("player")
+	if playerID == "" {
+		playerID = "test-player-1"
+	}
+	gameID := "test-game"
+
+	log.Printf("Client Connected: %s", playerID)
+
 	g := game.Store.GetGame(gameID)
+	
+	// Initialize test game if not exists
 	if g == nil {
 		g = &game.Game{
 			ID:          gameID,
 			Players:     make(map[string]*game.Player),
-			CurrentTurn: playerID,
+			CurrentTurn: "test-player-1", // Fixed start
 			Status:      "playing",
 		}
-		// Add test player
-		g.Players[playerID] = &game.Player{
-			ID:       playerID,
-			Username: "Tester",
-			Color:    1,
-			Conn:     conn,
+		// Human
+		g.Players["test-player-1"] = &game.Player{
+			ID:          "test-player-1",
+			Username:    "Tester",
+			Color:       1,
+			Conn:        conn,
+			IsConnected: true,
 		}
-		// Add dummy opponent so logic works
+		// Bot
 		g.Players["cpu"] = &game.Player{
-			ID:    "cpu",
-			Color: 2,
+			ID:          "cpu",
+			Username:    "Bot",
+			Color:       2,
+			IsBot:       true,
+			IsConnected: true,
 		}
 		game.Store.AddGame(g)
 	} else {
-		// Update connection if re-connecting to test game
+		// Reconnect Logic
 		if p, ok := g.Players[playerID]; ok {
+			// Cancel disconnect timer if exists
+			if p.DisconnectTimer != nil {
+				p.DisconnectTimer.Stop()
+				p.DisconnectTimer = nil
+				log.Printf("Player %s reconnected, timer stopped", playerID)
+			}
 			p.Conn = conn
+			p.IsConnected = true
+			
+			// Broadcast reconnect status? 
+			// For simplicity, just send state to reconnected user
+		} else {
+			// New player trying to join existing game? (Not handled in this step, reject or ignore)
+			// For testing, just add them if slot available? 
+			// The requirements say "Restore exact game state on reconnect".
+			// If invalid player, close.
+			// But for our test page, we might reload and have same ID.
+			// So we assume it's the same player.
 		}
 	}
 
 	// Send initial state
 	sendState(conn, g)
+
+	// Clean up on disconnect
+	defer func() {
+		log.Printf("Client Disconnected: %s", playerID)
+		handleDisconnect(g, playerID)
+		conn.Close()
+	}()
 
 	for {
 		_, message, err := conn.ReadMessage()
@@ -72,8 +108,6 @@ func WebSocketHandler(w http.ResponseWriter, r *http.Request) {
 			log.Println("Read error:", err)
 			break
 		}
-
-		log.Printf("Received: %s", message)
 
 		var msg game.WSMessage
 		if err := json.Unmarshal(message, &msg); err != nil {
@@ -85,14 +119,45 @@ func WebSocketHandler(w http.ResponseWriter, r *http.Request) {
 		case "move":
 			handleMove(conn, g, playerID, msg.Payload)
 		case "join":
-			// Handled by default setup above for Step 2
-			log.Println("Join received (auto-handled for Step 2)")
+			// Handled by connection setup
 		}
 	}
 }
 
+func handleDisconnect(g *game.Game, playerID string) {
+	if g.Status == "finished" {
+		return
+	}
+
+	p, ok := g.Players[playerID]
+	if !ok || p.IsBot {
+		return
+	}
+
+	p.IsConnected = false
+	// Start forfeiture timer
+	p.DisconnectTimer = time.AfterFunc(DisconnectTimeout, func() {
+		// Check if still disconnected (double check lock)
+		if !p.IsConnected {
+			log.Printf("Player %s timed out. Forfeiting game.", playerID)
+			g.Status = "finished"
+			g.Winner = "cpu" // In 2p game, winner is opponent. Here it's CPU.
+			
+			// Notify other players (CPU doesn't care, but if p2 was human...)
+			// Since we only have one connection in this scope, we can't easily broadcast 
+			// without iterating players.
+			broadcast(g, game.WSMessage{
+				Type: "game_over",
+				Payload: map[string]string{
+					"winner": "cpu",
+					"reason": "forfeit",
+				},
+			})
+		}
+	})
+}
+
 func handleMove(conn *websocket.Conn, g *game.Game, playerID string, payload interface{}) {
-	// Parse payload manually since it's interface{}
 	payloadBytes, _ := json.Marshal(payload)
 	var moveData struct {
 		Column int `json:"column"`
@@ -102,37 +167,66 @@ func handleMove(conn *websocket.Conn, g *game.Game, playerID string, payload int
 		return
 	}
 
-	// Apply move logic
-	err := game.ApplyMove(g, playerID, moveData.Column)
-	if err != nil {
+	// Human Move
+	if err := game.ApplyMove(g, playerID, moveData.Column); err != nil {
 		sendError(conn, err.Error())
 		return
 	}
+	broadcastState(g)
 
-	// Broadcast update (to just this connection for now, simpler for Step 2)
-	sendState(conn, g)
-
-	// If game over, send game_over
 	if g.Status == "finished" {
-		gameOverMsg := game.WSMessage{
-			Type: "game_over",
-			Payload: map[string]string{
-				"winner": g.Winner,
-			},
+		broadcastGameOver(g)
+		return
+	}
+
+	// Check if next turn is BOT
+	if g.CurrentTurn == "cpu" {
+		// Trigger Bot Move
+		// Small delay for realism (optional, strict rules say immediate, but "Do NOT use goroutines or delays yet" applied to "TRIGGERING")
+		// "Bot should respond immediately after a human move" -> OK, synchronous call.
+		
+		botMoveCol, err := bot.GetBestMove(g, 2) // Bot is color 2
+		if err != nil {
+			log.Println("Bot error:", err)
+			return // Should not happen with valid logic
 		}
-		conn.WriteJSON(gameOverMsg)
-	} else if g.CurrentTurn != playerID {
-		// Auto-switch turn back to player for testing purposes if it's single player test
-		// In Step 2 we just want to test logic, so let's allow "self-play" by hacking the turn back?
-		// Or better, just wait for the user to send another move as "cpu"?
-		// The instructions say "Only the current player may move".
-		// To test easily, let's just make the client send moves for both if needed, 
-		// OR simpler: we updated the logic to switch turns. 
-		// If we want to test solo, we might need to pretend the other player moved.
-		// BUT: Requirements say "Reject moves made out of turn".
-		// So we must respect the turn.
-		// For Step 2 testing, let's just log that it's the other player's turn.
-		log.Println("Turn switched to:", g.CurrentTurn)
+
+		// Apply Bot Move
+		if err := game.ApplyMove(g, "cpu", botMoveCol); err != nil {
+			log.Println("Bot invalid move:", err)
+			return
+		}
+		broadcastState(g)
+
+		if g.Status == "finished" {
+			broadcastGameOver(g)
+		}
+	}
+}
+
+func broadcastState(g *game.Game) {
+	msg := game.WSMessage{
+		Type:    "update",
+		Payload: g,
+	}
+	broadcast(g, msg)
+}
+
+func broadcastGameOver(g *game.Game) {
+	msg := game.WSMessage{
+		Type: "game_over",
+		Payload: map[string]string{
+			"winner": g.Winner,
+		},
+	}
+	broadcast(g, msg)
+}
+
+func broadcast(g *game.Game, msg game.WSMessage) {
+	for _, p := range g.Players {
+		if p.Conn != nil && p.IsConnected {
+			p.Conn.WriteJSON(msg)
+		}
 	}
 }
 
@@ -141,9 +235,7 @@ func sendState(conn *websocket.Conn, g *game.Game) {
 		Type:    "update",
 		Payload: g,
 	}
-	if err := conn.WriteJSON(msg); err != nil {
-		log.Println("Write error:", err)
-	}
+	conn.WriteJSON(msg)
 }
 
 func sendError(conn *websocket.Conn, errorMsg string) {

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Connect 4 Logic Test</title>
+    <title>Connect 4 Bot & Reconnect Test</title>
     <style>
         body { font-family: monospace; padding: 20px; }
         #log { border: 1px solid #ccc; padding: 10px; height: 150px; overflow-y: scroll; background: #f0f0f0; margin-top: 20px; }
@@ -14,9 +14,10 @@
     </style>
 </head>
 <body>
-    <h1>Connect 4 Logic Test (Step 2)</h1>
+    <h1>Connect 4 Bot & Reconnect Test (Step 3)</h1>
     <div class="controls">
-        <button onclick="connect()">Connect</button>
+        <button onclick="connect('test-player-1')">Connect as Human</button>
+        <button onclick="disconnect()">Disconnect (Simulate)</button>
         <span id="status">Disconnected</span>
         <span id="turn"></span>
     </div>
@@ -30,6 +31,7 @@
     <script>
         let ws;
         const boardEl = document.getElementById('board');
+        let myPlayerId = 'test-player-1';
 
         // Init board UI
         for (let r = 0; r < 6; r++) {
@@ -48,21 +50,26 @@
             div.scrollTop = div.scrollHeight;
         }
 
-        function connect() {
-            if (ws) return;
+        function connect(playerId) {
+            if (ws) {
+                 ws.close(); // Clean close previous
+            }
+            myPlayerId = playerId;
+            
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = `${protocol}//${window.location.host}/ws`;
+            // Add player param to simulate identity
+            const wsUrl = `${protocol}//${window.location.host}/ws?player=${playerId}`;
             
             ws = new WebSocket(wsUrl);
             
             ws.onopen = () => {
                 document.getElementById('status').innerText = "Connected";
-                log("Connected");
+                log("Connected as " + playerId);
             };
             
             ws.onmessage = (event) => {
                 const msg = JSON.parse(event.data);
-                log("Rx: " + msg.type);
+                // log("Rx: " + msg.type);
                 
                 if (msg.type === 'update') {
                     renderBoard(msg.payload.board);
@@ -73,15 +80,23 @@
                 } else if (msg.type === 'error') {
                     alert("Error: " + msg.payload);
                 } else if (msg.type === 'game_over') {
-                     alert("Game Over! Winner: " + msg.payload.winner);
+                     alert("Game Over! Winner: " + msg.payload.winner + (msg.payload.reason ? " ("+msg.payload.reason+")" : ""));
                 }
             };
             
             ws.onerror = (err) => log("Error: " + err);
+            ws.onclose = () => {
+                document.getElementById('status').innerText = "Disconnected";
+                log("Disconnected");
+            }
+        }
+        
+        function disconnect() {
+            if (ws) ws.close();
         }
 
         function sendMove(col) {
-            if (!ws) return;
+            if (!ws || ws.readyState !== WebSocket.OPEN) return;
             const msg = {
                 type: 'move',
                 payload: { column: parseInt(col) }
