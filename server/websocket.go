@@ -168,6 +168,9 @@ func handleDisconnect(g *game.Game, playerID string) {
 
         p.IsConnected = false
         // Start forfeiture timer
+        // Reconnect Window: 30 seconds.
+        // If the player does not reconnect within this window, they forfeit the game.
+        // This prevents games from hanging indefinitely due to connection issues.
         p.DisconnectTimer = time.AfterFunc(DisconnectTimeout, func() {
                 // Check if still disconnected (double check lock)
                 if !p.IsConnected {
