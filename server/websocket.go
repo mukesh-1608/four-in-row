@@ -1,6 +1,8 @@
 package server
 
 import (
+        "connect4/analytics"
+        "connect4/db"
         "connect4/game"
         "connect4/game/bot"
         "encoding/json"
