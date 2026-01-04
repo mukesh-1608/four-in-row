@@ -1,5 +1,8 @@
-module github.com/mukesh-1608/four-in-row
+module fourinrow
 
 go 1.22.3
 
-require github.com/gorilla/websocket v1.5.3
+require (
+	github.com/gorilla/websocket v1.5.3
+	github.com/lib/pq v1.10.9
+)

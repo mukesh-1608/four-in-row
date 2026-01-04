@@ -6,7 +6,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/mukesh-1608/four-in-row/game"
+	"fourinrow/game"
+
 	_ "github.com/lib/pq"
 )
 
@@ -22,24 +23,19 @@ type LeaderboardEntry struct {
 var Repo *Repository
 
 func InitDB() {
-	connStr := os.Getenv("DATABASE_URL")
-	if connStr == "" {
-		log.Println("DATABASE_URL not set, persistence disabled")
+	url := os.Getenv("DATABASE_URL")
+	if url == "" {
+		log.Println("DATABASE_URL not set, DB disabled")
 		return
 	}
 
-	db, err := sql.Open("postgres", connStr)
-	if err != nil {
-		log.Println("Failed to connect to DB:", err)
+	db, err := sql.Open("postgres", url)
+	if err != nil || db.Ping() != nil {
+		log.Println("DB connection failed")
 		return
 	}
 
-	if err := db.Ping(); err != nil {
-		log.Println("Failed to ping DB:", err)
-		return
-	}
-
-	query := `
+	db.Exec(`
 	CREATE TABLE IF NOT EXISTS games (
 		game_id TEXT PRIMARY KEY,
 		player1 TEXT,
@@ -47,17 +43,13 @@ func InitDB() {
 		winner TEXT,
 		created_at TIMESTAMP,
 		finished_at TIMESTAMP
-	)`
-	if _, err := db.Exec(query); err != nil {
-		log.Println("Failed to create table:", err)
-	}
+	)`)
 
 	Repo = &Repository{db: db}
-	log.Println("Database persistence enabled")
 }
 
 func (r *Repository) SaveGame(g *game.Game) {
-	if r == nil || r.db == nil {
+	if r == nil {
 		return
 	}
 
@@ -66,66 +58,41 @@ func (r *Repository) SaveGame(g *game.Game) {
 	for _, p := range g.Players {
 		if i == 0 {
 			p1 = p.Username
-		} else if i == 1 {
+		} else {
 			p2 = p.Username
 		}
 		i++
 	}
 
-	var winnerUsername string
-	if g.Winner == "draw" {
-		winnerUsername = "draw"
-	} else if p, ok := g.Players[g.Winner]; ok {
-		winnerUsername = p.Username
-	} else {
-		winnerUsername = g.Winner
+	winner := g.Winner
+	if p, ok := g.Players[g.Winner]; ok {
+		winner = p.Username
 	}
-
-	query := `
-	INSERT INTO games (game_id, player1, player2, winner, created_at, finished_at)
-	VALUES ($1, $2, $3, $4, $5, $6)
-	ON CONFLICT (game_id) DO UPDATE SET
-		winner = EXCLUDED.winner,
-		finished_at = EXCLUDED.finished_at
-	`
 
 	now := time.Now()
-	_, err := r.db.Exec(query, g.ID, p1, p2, winnerUsername, now, now)
-	if err != nil {
-		log.Println("Failed to persist game:", err)
-	} else {
-		log.Println("Game persisted successfully:", g.ID)
-	}
+	r.db.Exec(`
+	INSERT INTO games VALUES ($1,$2,$3,$4,$5,$6)
+	ON CONFLICT (game_id) DO UPDATE SET winner=$4, finished_at=$6
+	`, g.ID, p1, p2, winner, now, now)
 }
 
 func (r *Repository) GetLeaderboard() ([]LeaderboardEntry, error) {
-	if r == nil || r.db == nil {
-		return []LeaderboardEntry{}, nil
-	}
-
-	query := `
-	SELECT winner, COUNT(*) AS total_wins
-	FROM games
-	WHERE winner != 'draw' AND winner IS NOT NULL
+	rows, err := r.db.Query(`
+	SELECT winner, COUNT(*) FROM games
+	WHERE winner != 'draw'
 	GROUP BY winner
-	ORDER BY total_wins DESC
-	LIMIT 10
-	`
-
-	rows, err := r.db.Query(query)
+	ORDER BY COUNT(*) DESC
+	`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var leaderboard []LeaderboardEntry
+	var res []LeaderboardEntry
 	for rows.Next() {
 		var e LeaderboardEntry
-		if err := rows.Scan(&e.Username, &e.TotalWins); err != nil {
-			continue
-		}
-		leaderboard = append(leaderboard, e)
+		rows.Scan(&e.Username, &e.TotalWins)
+		res = append(res, e)
 	}
-
-	return leaderboard, nil
+	return res, nil
 }

@@ -3,118 +3,89 @@ package bot
 import (
 	"errors"
 
-	"github.com/mukesh-1608/four-in-row/game"
+	"fourinrow/game"
 )
 
-// GetBestMove returns the column index for the best move according to deterministic rules.
-//
-// Priority:
-// 1. Win immediately
-// 2. Block opponent win
-// 3. Center preference (3, 2/4, 1/5, 0/6)
 func GetBestMove(g *game.Game, botColor int) (int, error) {
 	board := g.Board
-
-	opponentColor := 1
+	enemy := 1
 	if botColor == 1 {
-		opponentColor = 2
+		enemy = 2
 	}
 
-	validMoves := getValidMoves(board)
-	if len(validMoves) == 0 {
+	valid := validMoves(board)
+	if len(valid) == 0 {
 		return -1, errors.New("no valid moves")
 	}
 
-	// 1. Winning move
-	for _, col := range validMoves {
-		if canWin(board, col, botColor) {
-			return col, nil
+	for _, c := range valid {
+		if canWin(board, c, botColor) {
+			return c, nil
 		}
 	}
 
-	// 2. Block opponent
-	for _, col := range validMoves {
-		if canWin(board, col, opponentColor) {
-			return col, nil
+	for _, c := range valid {
+		if canWin(board, c, enemy) {
+			return c, nil
 		}
 	}
 
-	// 3. Center priority
-	centerPriority := []int{3, 2, 4, 1, 5, 0, 6}
-	for _, col := range centerPriority {
-		if isValidMove(board, col) {
-			return col, nil
+	order := []int{3, 2, 4, 1, 5, 0, 6}
+	for _, c := range order {
+		if board[0][c] == 0 {
+			return c, nil
 		}
 	}
 
-	return validMoves[0], nil
+	return valid[0], nil
 }
 
-func getValidMoves(board [6][7]int) []int {
-	moves := []int{}
+func validMoves(board [6][7]int) []int {
+	var m []int
 	for c := 0; c < 7; c++ {
 		if board[0][c] == 0 {
-			moves = append(moves, c)
+			m = append(m, c)
 		}
 	}
-	return moves
+	return m
 }
 
-func isValidMove(board [6][7]int, col int) bool {
-	return col >= 0 && col < 7 && board[0][col] == 0
-}
-
-// canWin simulates a move and checks if it results in a win
-func canWin(board [6][7]int, col int, color int) bool {
-	row := -1
-	for r := 5; r >= 0; r-- {
-		if board[r][col] == 0 {
-			row = r
+func canWin(board [6][7]int, col, color int) bool {
+	r := -1
+	for i := 5; i >= 0; i-- {
+		if board[i][col] == 0 {
+			r = i
 			break
 		}
 	}
-
-	if row == -1 {
+	if r == -1 {
 		return false
 	}
-
-	board[row][col] = color
-	return checkWinHelper(board, row, col, color)
+	board[r][col] = color
+	return check(board, r, col, color)
 }
 
-// checkWinHelper duplicates win detection logic to keep bot deterministic
-func checkWinHelper(board [6][7]int, lastRow, lastCol, playerNum int) bool {
-	directions := [][2]int{
-		{0, 1},  // Horizontal
-		{1, 0},  // Vertical
-		{1, 1},  // Diagonal \
-		{1, -1}, // Diagonal /
-	}
-
-	for _, d := range directions {
-		dr, dc := d[0], d[1]
-		count := 1
-
+func check(b [6][7]int, r, c, p int) bool {
+	d := [][2]int{{0, 1}, {1, 0}, {1, 1}, {1, -1}}
+	for _, x := range d {
+		n := 1
 		for i := 1; i < 4; i++ {
-			r, c := lastRow+dr*i, lastCol+dc*i
-			if r < 0 || r >= 6 || c < 0 || c >= 7 || board[r][c] != playerNum {
+			rr, cc := r+x[0]*i, c+x[1]*i
+			if rr < 0 || rr >= 6 || cc < 0 || cc >= 7 || b[rr][cc] != p {
 				break
 			}
-			count++
+			n++
 		}
-
 		for i := 1; i < 4; i++ {
-			r, c := lastRow-dr*i, lastCol-dc*i
-			if r < 0 || r >= 6 || c < 0 || c >= 7 || board[r][c] != playerNum {
+			rr, cc := r-x[0]*i, c-x[1]*i
+			if rr < 0 || rr >= 6 || cc < 0 || cc >= 7 || b[rr][cc] != p {
 				break
 			}
-			count++
+			n++
 		}
-
-		if count >= 4 {
+		if n >= 4 {
 			return true
 		}
 	}
-
 	return false
 }
