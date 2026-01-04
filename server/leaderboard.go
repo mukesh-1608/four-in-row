@@ -1,9 +1,10 @@
 package server
 
 import (
-	"connect4/db"
 	"encoding/json"
 	"net/http"
+
+	"github.com/mukesh-1608/four-in-row/db"
 )
 
 func LeaderboardHandler(w http.ResponseWriter, r *http.Request) {
@@ -19,5 +20,5 @@ func LeaderboardHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(leaderboard)
+	_ = json.NewEncoder(w).Encode(leaderboard)
 }

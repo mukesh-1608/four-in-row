@@ -1,28 +1,33 @@
 package main
 
 import (
-	"connect4/analytics"
-	"connect4/db"
-	"connect4/server"
 	"log"
 	"net/http"
+
+	"github.com/mukesh-1608/four-in-row/analytics"
+	"github.com/mukesh-1608/four-in-row/db"
+	"github.com/mukesh-1608/four-in-row/server"
 )
 
 func main() {
-	// Initialize persistence and analytics
+	// Initialize database
 	db.InitDB()
+
+	// Initialize analytics (stubbed Kafka producer)
 	analytics.Producer = analytics.NewStubProducer()
 
-	// Register handlers
+	// WebSocket endpoint
 	http.HandleFunc("/ws", server.WebSocketHandler)
+
+	// Leaderboard endpoint
 	http.HandleFunc("/leaderboard", server.LeaderboardHandler)
 
-	// Serve static files for the minimal frontend
+	// Serve static frontend files
 	fs := http.FileServer(http.Dir("./client"))
 	http.Handle("/", fs)
 
-	log.Println("Server starting on :5000")
+	log.Println("Connect Four server running on http://localhost:5000")
 	if err := http.ListenAndServe(":5000", nil); err != nil {
-		log.Fatal("ListenAndServe: ", err)
+		log.Fatal("Server failed:", err)
 	}
 }

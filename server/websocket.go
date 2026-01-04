@@ -1,10 +1,14 @@
 package server
 
 import (
-	"connect4/analytics"
-	"connect4/db"
-	"connect4/game"
-	"connect4/game/bot"
+	"github.com/mukesh-1608/four-in-row/
+analytics"
+	"github.com/mukesh-1608/four-in-row/
+db"
+	"github.com/mukesh-1608/four-in-row/
+game"
+	"github.com/mukesh-1608/four-in-row/
+game/bot"
 	"encoding/json"
 	"log"
 	"net/http"
