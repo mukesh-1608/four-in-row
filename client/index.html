@@ -3,158 +3,296 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Connect 4 - Battle the Bot</title>
+    <title>Connect 4 - Bot Challenge</title>
     <style>
         :root {
             --bg-color: #1a1a2e;
-            --board-color: #0f3460;
-            --cell-bg: #16213e;
-            --p1-color: #e94560;
-            --p2-color: #f7d100;
-            --text-color: #ffffff;
-            --disabled-color: #4a4a6a;
+            --board-bg: #16213e;
+            --board-blue: #0f3460;
+            --board-border: #1a4d8f;
+            --cell-empty: #1a1a2e;
+            --p1-red: #e94560;
+            --p1-red-dark: #800e2b;
+            --p2-yellow: #f7d100;
+            --p2-yellow-dark: #b8860b;
+            --text-white: #ffffff;
+            --text-dim: #94a3b8;
         }
+
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
             background-color: var(--bg-color);
-            color: var(--text-color);
+            color: var(--text-white);
+            margin: 0;
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
             min-height: 100vh;
-            margin: 0;
+            overflow-x: hidden;
             user-select: none;
         }
-        h1 { margin-bottom: 10px; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); }
-        .controls { margin-bottom: 20px; display: flex; gap: 10px; align-items: center; }
-        button {
-            padding: 10px 20px;
-            font-size: 16px;
-            cursor: pointer;
-            background-color: var(--board-color);
-            color: white;
-            border: 2px solid #00d2ff;
-            border-radius: 5px;
-            transition: all 0.3s;
+
+        .header {
+            text-align: center;
+            padding: 2rem 1rem;
         }
-        button:hover:not(:disabled) { background-color: #00d2ff; color: var(--bg-color); }
-        button:disabled { opacity: 0.5; cursor: not-allowed; border-color: var(--disabled-color); }
-        
-        .game-container { position: relative; }
-        .board {
+
+        h1 {
+            font-size: 3rem;
+            margin: 0;
+            background: linear-gradient(to bottom, #fff, #94a3b8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .status-area {
+            height: 4rem;
             display: flex;
-            background-color: var(--board-color);
-            padding: 15px;
-            border-radius: 10px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            border: 4px solid #00d2ff;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        #status-text {
+            font-size: 1.5rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .game-wrapper {
+            position: relative;
+            padding-top: 60px; /* Space for hover preview */
+        }
+
+        /* Hover Preview */
+        #hover-preview {
+            position: absolute;
+            top: 0;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            opacity: 0;
+            transition: left 0.1s ease-out, opacity 0.2s;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        .board-container {
+            background-color: var(--board-blue);
+            padding: 1rem;
+            border-radius: 1.5rem;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5), 
+                        inset 0 2px 10px rgba(255,255,255,0.1);
+            border: 8px solid var(--board-border);
+            display: flex;
             gap: 10px;
         }
+
         .column {
             display: flex;
             flex-direction: column;
             gap: 10px;
             cursor: pointer;
             padding: 5px;
-            border-radius: 8px;
+            border-radius: 0.75rem;
             transition: background-color 0.2s;
+            position: relative;
         }
+
         .column:hover:not(.disabled) {
-            background-color: rgba(0, 210, 255, 0.1);
+            background-color: rgba(255,255,255,0.05);
         }
+
         .column.disabled {
-            cursor: not-allowed;
+            cursor: default;
         }
+
         .cell {
             width: 60px;
             height: 60px;
-            background-color: var(--cell-bg);
+            background-color: var(--cell-empty);
             border-radius: 50%;
+            position: relative;
+            box-shadow: inset 0 4px 10px rgba(0,0,0,0.6);
+            overflow: visible; /* Allow drop animation to be seen */
+        }
+
+        /* 3D Discs */
+        .disc {
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            position: absolute;
+            top: 4px;
+            left: 4px;
+            z-index: 2;
+        }
+
+        .p1 {
+            background: radial-gradient(circle at 30% 30%, var(--p1-red), var(--p1-red-dark));
+            box-shadow: 0 4px 0 #5a0a1e, inset 0 2px 4px rgba(255,255,255,0.3);
+        }
+
+        .p2 {
+            background: radial-gradient(circle at 30% 30%, var(--p2-yellow), var(--p2-yellow-dark));
+            box-shadow: 0 4px 0 #8a6d00, inset 0 2px 4px rgba(255,255,255,0.3);
+        }
+
+        /* Drop Animation */
+        @keyframes drop {
+            from { transform: translateY(-400px); }
+            to { transform: translateY(0); }
+        }
+
+        .animate-drop {
+            animation: drop 0.5s cubic-bezier(0.47, 0, 0.745, 0.715) forwards;
+        }
+
+        /* Controls */
+        .controls {
+            margin-top: 2rem;
             display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        button {
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            font-size: 1.25rem;
+            font-weight: bold;
+            border-radius: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 4px 15px rgba(29, 78, 216, 0.3);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(29, 78, 216, 0.4);
+        }
+
+        button:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            background: #475569;
+            box-shadow: none;
+        }
+
+        .game-over-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.8);
+            display: none;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
-            position: relative;
-            box-shadow: inset 0 4px 8px rgba(0,0,0,0.3);
+            z-index: 100;
+            backdrop-filter: blur(8px);
         }
-        .disc {
-            width: 50px;
-            height: 50px;
+
+        .game-over-content {
+            background: var(--board-blue);
+            padding: 3rem;
+            border-radius: 2rem;
+            text-align: center;
+            border: 4px solid var(--board-border);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        #winner-announcement {
+            font-size: 3rem;
+            margin-bottom: 2rem;
+            font-weight: 800;
+        }
+
+        .conn-badge {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+            color: var(--text-dim);
+            margin-top: 1rem;
+        }
+
+        .dot {
+            width: 8px;
+            height: 8px;
             border-radius: 50%;
-            transform: translateY(0);
-            transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            opacity: 0;
+            background: #ef4444;
         }
-        .disc.visible { opacity: 1; }
-        .p1 { background: radial-gradient(circle at 30% 30%, #ff4d6d, #800e2b); box-shadow: 0 4px 10px rgba(233, 69, 96, 0.5); }
-        .p2 { background: radial-gradient(circle at 30% 30%, #fff200, #b8860b); box-shadow: 0 4px 10px rgba(247, 209, 0, 0.5); }
-        
-        #status-indicator {
-            margin-top: 20px;
-            font-size: 1.2rem;
-            font-weight: bold;
-            padding: 10px 20px;
-            border-radius: 20px;
-            background: rgba(255,255,255,0.1);
-            min-height: 1.5em;
-        }
-        #new-game-container {
-            margin-top: 20px;
-            display: none;
-        }
-        #log {
-            margin-top: 20px;
-            width: 480px;
-            height: 80px;
-            overflow-y: auto;
-            font-size: 11px;
-            background: rgba(0,0,0,0.3);
-            padding: 10px;
-            border-radius: 5px;
-            color: #aaa;
-        }
+
+        .dot.online { background: #22c55e; }
     </style>
 </head>
 <body>
-    <h1>CONNECT 4</h1>
-    
-    <div class="controls">
-        <button id="connect-btn" onclick="startNewGame()">Start Game</button>
-        <div id="conn-status" style="color: #ff4d6d;">● Disconnected</div>
+    <div class="header">
+        <h1>Connect Four</h1>
+        <div class="conn-badge">
+            <div id="conn-dot" class="dot"></div>
+            <span id="conn-text">Disconnected</span>
+        </div>
     </div>
 
-    <div class="game-container">
-        <div id="board" class="board">
+    <div class="status-area">
+        <div id="status-text">Press Start Game</div>
+    </div>
+
+    <div class="game-wrapper">
+        <div id="hover-preview"></div>
+        <div id="board" class="board-container">
             <!-- Columns generated by JS -->
         </div>
     </div>
 
-    <div id="status-indicator">Press 'Start Game' to begin</div>
-
-    <div id="new-game-container">
-        <button onclick="startNewGame()">Play Again</button>
+    <div class="controls">
+        <button id="start-btn" onclick="startNewGame()">Start Game</button>
     </div>
-    
-    <div id="log"></div>
+
+    <div id="game-over-overlay" class="game-over-overlay">
+        <div class="game-over-content">
+            <div id="winner-announcement">RED WINS!</div>
+            <button onclick="startNewGame()">Play Again</button>
+        </div>
+    </div>
 
     <script>
         let ws;
         const boardEl = document.getElementById('board');
-        const statusEl = document.getElementById('status-indicator');
-        const connStatusEl = document.getElementById('conn-status');
-        const connectBtn = document.getElementById('connect-btn');
-        const newGameContainer = document.getElementById('new-game-container');
+        const statusTextEl = document.getElementById('status-text');
+        const connDot = document.getElementById('conn-dot');
+        const connText = document.getElementById('conn-text');
+        const startBtn = document.getElementById('start-btn');
+        const gameOverOverlay = document.getElementById('game-over-overlay');
+        const winnerAnnounce = document.getElementById('winner-announcement');
+        const hoverPreview = document.getElementById('hover-preview');
         
         const myPlayerId = 'test-player-1';
         let currentGameState = null;
+        let lastBoard = null;
 
-        // Init board UI
         function initBoardUI() {
             boardEl.innerHTML = '';
             for (let c = 0; c < 7; c++) {
                 const column = document.createElement('div');
                 column.className = 'column disabled';
                 column.id = `col-${c}`;
+                
+                // Track mouse for hover preview
+                column.onmouseenter = () => updateHoverPreview(c, true);
+                column.onmouseleave = () => updateHoverPreview(c, false);
                 column.onclick = () => sendMove(c);
                 
                 for (let r = 0; r < 6; r++) {
@@ -167,25 +305,37 @@
             }
         }
 
-        function log(msg) {
-            const div = document.getElementById('log');
-            div.innerHTML = `<div>${new Date().toLocaleTimeString()} - ${msg}</div>` + div.innerHTML;
+        function updateHoverPreview(colIndex, visible) {
+            if (!currentGameState || currentGameState.status !== 'playing' || currentGameState.currentTurn !== myPlayerId) {
+                hoverPreview.style.opacity = '0';
+                return;
+            }
+
+            if (visible) {
+                const colEl = document.getElementById(`col-${colIndex}`);
+                const rect = colEl.getBoundingClientRect();
+                const parentRect = boardEl.parentElement.getBoundingClientRect();
+                
+                hoverPreview.style.left = (rect.left - parentRect.left + 5) + 'px';
+                hoverPreview.style.opacity = '0.5';
+                hoverPreview.className = 'p1'; // Current player is always p1 in this context
+            } else {
+                hoverPreview.style.opacity = '0';
+            }
         }
 
         function startNewGame() {
             if (ws) {
-                ws.onclose = null; // Prevent triggers during manual close
+                ws.onclose = null;
                 ws.close();
             }
             
-            // Reset UI state
-            currentGameState = null;
-            newGameContainer.style.display = 'none';
-            statusEl.innerText = "Connecting...";
-            statusEl.style.color = "white";
+            gameOverOverlay.style.display = 'none';
+            statusTextEl.innerText = "Connecting...";
+            statusTextEl.style.color = "var(--text-white)";
+            lastBoard = null;
             initBoardUI();
             
-            // Generate a unique session ID to avoid reconnecting to finished game
             const sessionId = 'game-' + Date.now();
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const wsUrl = `${protocol}//${window.location.host}/ws?player=${myPlayerId}&session=${sessionId}`;
@@ -193,65 +343,52 @@
             ws = new WebSocket(wsUrl);
             
             ws.onopen = () => {
-                connStatusEl.style.color = "#00d2ff";
-                connStatusEl.innerText = "● Connected";
-                connectBtn.style.display = "none";
-                log("Connected to fresh session");
+                connDot.className = 'dot online';
+                connText.innerText = 'Connected';
+                startBtn.style.display = 'none';
             };
             
             ws.onmessage = (event) => {
                 const msg = JSON.parse(event.data);
-                
                 if (msg.type === 'update') {
-                    currentGameState = msg.payload;
-                    renderBoard(currentGameState.board);
-                    updateUIState();
-                } else if (msg.type === 'error') {
-                    log("Error: " + msg.payload);
+                    handleGameUpdate(msg.payload);
                 } else if (msg.type === 'game_over') {
-                    currentGameState.status = 'finished';
-                    currentGameState.winner = msg.payload.winner;
-                    updateUIState();
-                    log("Game Over: " + msg.payload.winner);
+                    showGameOver(msg.payload.winner);
                 }
             };
             
             ws.onclose = () => {
-                connStatusEl.style.color = "#ff4d6d";
-                connStatusEl.innerText = "● Disconnected";
-                connectBtn.style.display = "inline-block";
-                connectBtn.innerText = "Reconnect";
-                updateUIState();
-                log("Connection lost");
-                ws = null;
+                connDot.className = 'dot';
+                connText.innerText = 'Disconnected';
+                startBtn.style.display = 'block';
+                startBtn.innerText = 'Reconnect';
+                statusTextEl.innerText = 'Connection Lost';
             };
         }
 
-        function sendMove(col) {
-            const canMove = ws && 
-                           ws.readyState === WebSocket.OPEN && 
-                           currentGameState && 
-                           currentGameState.status === 'playing' && 
-                           currentGameState.currentTurn === myPlayerId;
-
-            if (!canMove) return;
-
-            ws.send(JSON.stringify({
-                type: 'move',
-                payload: { column: parseInt(col) }
-            }));
+        function handleGameUpdate(state) {
+            const oldBoard = lastBoard;
+            currentGameState = state;
+            lastBoard = state.board;
+            
+            renderBoard(state.board, oldBoard);
+            updateUIState();
         }
 
-        function renderBoard(grid) {
+        function renderBoard(grid, oldGrid) {
             for (let r = 0; r < 6; r++) {
                 for (let c = 0; c < 7; c++) {
                     const cell = document.getElementById(`cell-${r}-${c}`);
-                    const val = grid[r][c];
-                    cell.innerHTML = '';
-                    if (val !== 0) {
-                        const disc = document.createElement('div');
-                        disc.className = `disc visible ${val === 1 ? 'p1' : 'p2'}`;
-                        cell.appendChild(disc);
+                    const newVal = grid[r][c];
+                    const oldVal = oldGrid ? oldGrid[r][c] : 0;
+                    
+                    if (newVal !== oldVal) {
+                        cell.innerHTML = '';
+                        if (newVal !== 0) {
+                            const disc = document.createElement('div');
+                            disc.className = `disc ${newVal === 1 ? 'p1' : 'p2'} animate-drop`;
+                            cell.appendChild(disc);
+                        }
                     }
                 }
             }
@@ -259,32 +396,55 @@
 
         function updateUIState() {
             const isMyTurn = currentGameState && currentGameState.currentTurn === myPlayerId;
-            const isGameOver = currentGameState && currentGameState.status === 'finished';
-            const isDisconnected = !ws || ws.readyState !== WebSocket.OPEN;
+            const isPlaying = currentGameState && currentGameState.status === 'playing';
 
-            // Update Columns
+            // Update status text
+            if (isPlaying) {
+                statusTextEl.innerText = isMyTurn ? "YOUR TURN" : "BOT THINKING...";
+                statusTextEl.style.color = isMyTurn ? "var(--p1-red)" : "var(--p2-yellow)";
+            }
+
+            // Enable/disable columns
             for (let c = 0; c < 7; c++) {
                 const col = document.getElementById(`col-${c}`);
-                if (isMyTurn && !isGameOver && !isDisconnected) {
+                if (isMyTurn && isPlaying) {
                     col.classList.remove('disabled');
                 } else {
                     col.classList.add('disabled');
                 }
             }
-
-            // Update Status Text
-            if (isDisconnected) {
-                statusEl.innerText = "DISCONNECTED";
-                statusEl.style.color = "#ff4d6d";
-            } else if (isGameOver) {
-                const winner = currentGameState.winner;
-                statusEl.innerText = winner === 'draw' ? "DRAW!" : (winner === myPlayerId ? "YOU WIN!" : "BOT WINS!");
-                statusEl.style.color = winner === myPlayerId ? "#e94560" : (winner === 'draw' ? "white" : "#f7d100");
-                newGameContainer.style.display = 'block';
-            } else if (currentGameState) {
-                statusEl.innerText = isMyTurn ? "YOUR TURN" : "WAITING FOR BOT...";
-                statusEl.style.color = isMyTurn ? "#e94560" : "#f7d100";
+            
+            // Refresh hover preview if active
+            const activeCol = document.querySelector('.column:hover');
+            if (activeCol) {
+                const index = parseInt(activeCol.id.split('-')[1]);
+                updateHoverPreview(index, true);
             }
+        }
+
+        function showGameOver(winner) {
+            currentGameState.status = 'finished';
+            updateUIState();
+            
+            if (winner === 'draw') {
+                winnerAnnounce.innerText = "IT'S A DRAW!";
+                winnerAnnounce.style.color = "var(--text-white)";
+            } else {
+                const isMe = winner === myPlayerId;
+                winnerAnnounce.innerText = isMe ? "YOU WIN!" : "BOT WINS!";
+                winnerAnnounce.style.color = isMe ? "var(--p1-red)" : "var(--p2-yellow)";
+            }
+            
+            gameOverOverlay.style.display = 'flex';
+        }
+
+        function sendMove(col) {
+            if (!currentGameState || currentGameState.status !== 'playing' || currentGameState.currentTurn !== myPlayerId) return;
+
+            ws.send(JSON.stringify({
+                type: 'move',
+                payload: { column: parseInt(col) }
+            }));
         }
 
         initBoardUI();
