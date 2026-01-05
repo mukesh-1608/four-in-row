@@ -19,7 +19,6 @@ type spaHandler struct {
 
 func (h spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// join the static path with the requested URL path
-	// e.g. "./client/dist" + "/assets/index.js"
 	path := filepath.Join(h.staticPath, r.URL.Path)
 
 	// Check if the file exists on disk
@@ -30,7 +29,6 @@ func (h spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, filepath.Join(h.staticPath, h.indexPath))
 		return
 	} else if err != nil {
-		// If there's a different error (permission etc), return 500
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -40,11 +38,18 @@ func (h spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	// Initialize database (safe if DATABASE_URL not set)
+	// 1. Initialize database
 	db.InitDB()
 
-	// Initialize analytics (stubbed)
-	analytics.Producer = analytics.NewStubProducer()
+	// 2. Initialize Analytics (Try Kafka, fallback to Stub)
+	// We point to localhost:9092 because that is where Docker is running Kafka
+	kafkaBrokers := []string{"localhost:9092"}
+	analytics.Producer = analytics.NewKafkaProducer(kafkaBrokers, "game-events")
+	
+	if analytics.Producer == nil {
+		analytics.Producer = analytics.NewStubProducer()
+	}
+    defer analytics.Producer.Close()
 
 	http.HandleFunc("/ws", server.WebSocketHandler)
 	http.HandleFunc("/leaderboard", server.LeaderboardHandler)
