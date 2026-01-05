@@ -51,12 +51,20 @@ func main() {
 		kafkaBrokers = []string{"localhost:9092"}
 	}
 
-	analytics.Producer = analytics.NewKafkaProducer(kafkaBrokers, "game-events")
-	
-	// If Kafka fails (or isn't configured on Cloud), fallback to Stub so app doesn't crash
-	if analytics.Producer == nil {
+	// --- FIX START: TYPED NIL CHECK ---
+	// We capture the pointer returned by NewKafkaProducer directly.
+	// We MUST check if this specific pointer is nil BEFORE assigning it to the interface.
+	kafkaProducer := analytics.NewKafkaProducer(kafkaBrokers, "game-events")
+
+	if kafkaProducer != nil {
+		// It worked! Assign the valid pointer to the global interface
+		analytics.Producer = kafkaProducer
+	} else {
+		// It failed! Use the Stub instead
 		analytics.Producer = analytics.NewStubProducer()
 	}
+	// --- FIX END ---
+	
     defer analytics.Producer.Close()
 
 	// 3. Setup Routes
