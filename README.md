@@ -8,7 +8,7 @@
 
 A production-ready, full-stack implementation of the classic "Four in a Row" game. This project demonstrates a scalable architecture featuring real-time WebSocket communication, an event-driven analytics pipeline, and a heuristic-based CPU opponent.
 
-> **Live Demo:** [Insert Link Here] *(Optional: Add link if hosted)*
+> **Live Demo:** [[Insert Link Here](https://fourinrow-emittr.onrender.com)] *(Optional: Add link if hosted)*
 
 ---
 
