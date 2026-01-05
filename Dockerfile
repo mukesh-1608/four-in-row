@@ -1,15 +1,13 @@
 # Stage 1: Build the React Frontend
 FROM node:18-alpine AS frontend-builder
 WORKDIR /app/client
-# Copy package files and install dependencies
 COPY client/package*.json ./
 RUN npm install
-# Copy the rest of the frontend code and build
 COPY client/ ./
 RUN npm run build
 
-# Stage 2: Build the Go Backend
-FROM golang:1.22-alpine AS backend-builder
+# Stage 2: Build the Go Backend (UPDATED TO 1.24)
+FROM golang:1.24-alpine AS backend-builder
 WORKDIR /app
 # Copy Go module files and download dependencies
 COPY go.mod go.sum ./
@@ -28,7 +26,7 @@ WORKDIR /root/
 COPY --from=backend-builder /app/main .
 COPY --from=backend-builder /app/client/dist ./client/dist
 
-# Expose the port (Render will override this, but good for documentation)
+# Expose the port
 EXPOSE 5000
 
 # Run the app
